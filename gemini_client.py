@@ -41,7 +41,7 @@ Look at the screenshot and rate their productivity from 1 to 10.
 Respond ONLY with valid JSON in this exact format (no extra text):
 {{"score": 7, "reason": "User appears to be reading documentation", "is_productive": true}}"""
 
-    img_data = _image_to_base64(screenshot)
+    img_data = _image_to_base64(screenshot.resize((640, 360)))
 
     response = model.generate_content([
         {"mime_type": "image/png", "data": img_data},

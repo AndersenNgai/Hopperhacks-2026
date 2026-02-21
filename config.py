@@ -4,11 +4,11 @@
 # SETUP: Replace GEMINI_API_KEY with your actual key from https://aistudio.google.com/
 
 # ── API ──────────────────────────────────────────────────────────────────────
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"  # <-- paste your key here
+GEMINI_API_KEY = "AIzaSyBcG8Sj1ojhaHqbzsHhok9RqQA1_I2UBdM"  # <-- paste your key here
 GEMINI_MODEL   = "gemini-2.0-flash"          # fast + cheap for hackathon
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
-SCREENSHOT_INTERVAL_SECONDS = 45    # how often to take a screenshot
+SCREENSHOT_INTERVAL_SECONDS = 5    # how often to take a screenshot
 LOW_SCORE_THRESHOLD         = 4     # score below this is "unproductive" (1-10)
 CONSECUTIVE_LOW_BEFORE_ALERT = 3    # how many low scores in a row before notification
 
