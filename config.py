@@ -5,7 +5,7 @@
 
 # ── API ──────────────────────────────────────────────────────────────────────
 GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"  # <-- paste your key here
-GEMINI_MODEL   = "gemini-1.5-flash"          # fast + cheap for hackathon
+GEMINI_MODEL   = "gemini-2.0-flash"          # fast + cheap for hackathon
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 SCREENSHOT_INTERVAL_SECONDS = 45    # how often to take a screenshot
