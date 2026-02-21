@@ -1,155 +1,107 @@
 # assignments.py
 # Task input, Pomodoro timer, and break scheduling
+# ----------------------------------------
+# This module manages the user's assignments and runs the Pomodoro timer.
+# It is beginner-friendly — mostly data management + a timer thread.
 
 import threading
 import time
 from datetime import datetime
-from typing import List, Dict
 from plyer import notification
 import config
 
-
 # ── Data Storage ───────────────────────────────────────────────────────────────
-assignments: List[Dict] = []
-_assignments_lock = threading.Lock()
-
+# List of assignment dicts:
+# { "name": str, "estimated_minutes": int, "due_date": str, "completed": bool, "created_at": str }
+assignments: list[dict] = []
 
 # ── Pomodoro State ─────────────────────────────────────────────────────────────
-_pomodoro_thread = None
-_stop_event = threading.Event()
-_current_interval = 0
+_pomodoro_thread   = None
+_stop_event        = threading.Event()   # NEW: cleaner stop signal (minor)
+_current_interval  = 0
 _on_break_callback = None
-_on_work_callback = None
+_on_work_callback  = None
 
 
 # ── Assignment CRUD ────────────────────────────────────────────────────────────
 
-def add_assignment(name: str, estimated_minutes, due_date: str = "", priority="medium") -> dict:
-    """Add a new assignment."""
+def add_assignment(name: str, estimated_minutes: int, due_date: str = "") -> dict:
+    """
+    Add a new assignment.
+    """
+    # NEW: ensure minutes is an int (handles "30" or 30.0 safely)
     try:
-        minutes = int(float(estimated_minutes))
+        estimated_minutes = int(float(estimated_minutes))
     except Exception:
-        minutes = int(config.POMODORO_WORK_MINUTES)
+        estimated_minutes = int(config.POMODORO_WORK_MINUTES)
 
     assignment = {
-        "name": name.strip(),
-        "estimated_minutes": minutes,
-        "due_date": due_date.strip(),
-        "priority": priority,
-        "progress_minutes": 0,
+        "name": name,
+        "estimated_minutes": estimated_minutes,
+        "due_date": due_date,
         "completed": False,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
-
-    with _assignments_lock:
-        assignments.append(assignment)
-
-    print(f"[Assignments] Added: '{name}' ({minutes} min, priority={priority})")
+    assignments.append(assignment)
+    print(f"[Assignments] Added: '{name}' ({estimated_minutes} min)")
     return assignment
 
 
 def complete_assignment(name: str):
-    with _assignments_lock:
-        for a in assignments:
-            if a["name"].lower() == name.lower():
-                a["completed"] = True
-                print(f"[Assignments] Completed: '{name}'")
-                return
+    """Mark an assignment as completed by name."""
+    for a in assignments:
+        if a["name"].lower() == name.lower():
+            a["completed"] = True
+            print(f"[Assignments] Completed: '{name}'")
+            return
     print(f"[Assignments] Not found: '{name}'")
 
 
-def remove_assignment(name: str):
-    with _assignments_lock:
-        assignments[:] = [a for a in assignments if a["name"].lower() != name.lower()]
-
-
-def get_active_assignments() -> List[Dict]:
-    with _assignments_lock:
-        return [a.copy() for a in assignments if not a["completed"]]
-
-
-# ── Smart Task Selection ───────────────────────────────────────────────────────
-
-def _task_score(task: Dict) -> int:
-    """Score tasks based on priority and urgency."""
-    priority_map = {"high": 3, "medium": 2, "low": 1}
-    p = priority_map.get(task.get("priority", "medium"), 2)
-
-    urgency = 0
-    if task["due_date"]:
-        try:
-            due = datetime.strptime(task["due_date"], "%Y-%m-%d")
-            days = (due - datetime.now()).days
-            urgency = max(0, 30 - days)
-        except Exception:
-            pass
-
-    return -(p * 10 + urgency)
-
-
-def get_smart_task_list() -> List[Dict]:
-    """Return active tasks sorted by importance."""
-    active = get_active_assignments()
-    return sorted(active, key=_task_score)
+def get_active_assignments() -> list[dict]:
+    """Return all assignments that are not yet completed."""
+    return [a for a in assignments if not a["completed"]]
 
 
 def get_current_assignment_name() -> str:
-    tasks = get_smart_task_list()
-    return tasks[0]["name"] if tasks else "General work"
+    """Return the name of the first active assignment, or a default."""
+    active = get_active_assignments()
+    return active[0]["name"] if active else "General work"
 
 
-# ── Progress Tracking ──────────────────────────────────────────────────────────
-
-def update_progress(minutes: int):
-    """Update progress for the highest-priority task."""
-    with _assignments_lock:
-        active = [a for a in assignments if not a["completed"]]
-        if not active:
-            return
-
-        active.sort(key=_task_score)
-        active[0]["progress_minutes"] += minutes
-
-
-def get_productivity_stats() -> Dict:
-    """Basic analytics for UI or AI."""
-    with _assignments_lock:
-        total_minutes = sum(a["progress_minutes"] for a in assignments)
-        completed = sum(1 for a in assignments if a["completed"])
-        return {
-            "total_minutes": total_minutes,
-            "tasks_completed": completed,
-            "tasks_total": len(assignments),
-        }
+def remove_assignment(name: str):
+    """Remove an assignment from the list entirely."""
+    # NEW: modify list in-place so other modules keep the same reference
+    assignments[:] = [a for a in assignments if a["name"].lower() != name.lower()]
 
 
 # ── Pomodoro Timer ─────────────────────────────────────────────────────────────
 
 def start_pomodoro(on_break=None, on_work=None):
+    """
+    Start the Pomodoro timer loop in a background thread.
+    """
     global _pomodoro_thread, _on_break_callback, _on_work_callback, _current_interval
 
+    # NEW: prevent starting twice
     if _pomodoro_thread and _pomodoro_thread.is_alive():
         print("[Pomodoro] Already running.")
         return
 
     _on_break_callback = on_break
-    _on_work_callback = on_work
-    _current_interval = 0
-    _stop_event.clear()
+    _on_work_callback  = on_work
+    _current_interval  = 0
+    _stop_event.clear()  # NEW
 
     _pomodoro_thread = threading.Thread(target=_pomodoro_loop, daemon=True)
     _pomodoro_thread.start()
-
-    print(
-        f"[Pomodoro] Started — "
-        f"{config.POMODORO_WORK_MINUTES}m work / "
-        f"{config.POMODORO_SHORT_BREAK}m break / "
-        f"{config.POMODORO_LONG_BREAK}m long break"
-    )
+    print(f"[Pomodoro] Started — {config.POMODORO_WORK_MINUTES}min work / "
+          f"{config.POMODORO_SHORT_BREAK}min break / "
+          f"{config.POMODORO_LONG_BREAK}min long break every {config.POMODORO_INTERVALS} intervals")
 
 
 def stop_pomodoro():
-    _stop_event.set()
+    """Stop the Pomodoro timer."""
+    _stop_event.set()  # NEW
     print("[Pomodoro] Stopping...")
 
 
@@ -160,37 +112,25 @@ def _pomodoro_loop():
         _current_interval += 1
         print(f"[Pomodoro] Work interval {_current_interval} started")
 
-        task = get_current_assignment_name()
-
         if _on_work_callback:
             _on_work_callback(_current_interval)
 
-        _notify(
-            "FocusOrb ⏱️ — Work time!",
-            f"{task} — Interval {_current_interval}. Stay focused!",
-        )
-
+        # ── Work Period ────────────────────────────────────────────────────────
+        _notify("FocusOrb ⏱️ — Work time!", f"Interval {_current_interval} started. Stay focused!")
         _sleep_interruptible(config.POMODORO_WORK_MINUTES * 60)
 
         if _stop_event.is_set():
             break
 
-        # Track progress
-        update_progress(config.POMODORO_WORK_MINUTES)
-
-        # Break logic
+        # ── Break Period ───────────────────────────────────────────────────────
         is_long = (_current_interval % config.POMODORO_INTERVALS == 0)
-        break_mins = (
-            config.POMODORO_LONG_BREAK if is_long else config.POMODORO_SHORT_BREAK
-        )
+        break_mins = config.POMODORO_LONG_BREAK if is_long else config.POMODORO_SHORT_BREAK
+        break_label = "Long break" if is_long else "Short break"
 
-        label = "Long break" if is_long else "Short break"
-
-        print(f"[Pomodoro] {label}: {break_mins} minutes")
-
+        print(f"[Pomodoro] {break_label}: {break_mins} minutes")
         _notify(
-            f"FocusOrb 🟢 — {label}!",
-            f"Great work! Take {break_mins} minutes.",
+            f"FocusOrb 🟢 — {break_label}!",
+            f"Great work! Take {break_mins} minutes. You earned it."
         )
 
         if _on_break_callback:
@@ -201,12 +141,14 @@ def _pomodoro_loop():
         if _stop_event.is_set():
             break
 
-        _notify("FocusOrb ⏱️ — Break over!", "Back to work!")
+        _notify("FocusOrb ⏱️ — Break over!", "Time to get back to work!")
 
     print("[Pomodoro] Loop ended.")
 
 
-def _sleep_interruptible(seconds):
+def _sleep_interruptible(seconds: int):
+    """Sleep in small chunks so we can stop the timer quickly."""
+    # NEW: cast to int so range(...) never crashes
     try:
         seconds = int(seconds)
     except Exception:
@@ -214,11 +156,12 @@ def _sleep_interruptible(seconds):
 
     for _ in range(seconds):
         if _stop_event.is_set():
-            return
+            break
         time.sleep(1)
 
 
 def _notify(title: str, message: str):
+    """Send a desktop notification."""
     try:
         notification.notify(title=title, message=message, timeout=6)
     except Exception as e:
@@ -227,27 +170,21 @@ def _notify(title: str, message: str):
 
 # ── Utilities ──────────────────────────────────────────────────────────────────
 
-def estimate_pomodoro_intervals(assignment: Dict) -> int:
-    try:
-        mins = int(assignment.get("estimated_minutes", 25))
-        work = int(config.POMODORO_WORK_MINUTES)
-    except Exception:
-        return 1
-
-    return max(1, round(mins / work))
+def estimate_pomodoro_intervals(assignment: dict) -> int:
+    """
+    Given an assignment, estimate how many Pomodoro intervals it'll take.
+    """
+    mins = assignment.get("estimated_minutes", 25)
+    intervals = max(1, round(mins / config.POMODORO_WORK_MINUTES))
+    return intervals
 
 
 def get_summary() -> str:
-    with _assignments_lock:
-        if not assignments:
-            return "No assignments added yet."
-
-        lines = []
-        for a in assignments:
-            status = "✅" if a["completed"] else "🔲"
-            lines.append(
-                f"{status} {a['name']} ({a['estimated_minutes']} min, {a['priority']}) "
-                f"— due: {a['due_date'] or 'N/A'}"
-            )
-
-        return "\n".join(lines)
+    """Return a quick text summary of all assignments."""
+    if not assignments:
+        return "No assignments added yet."
+    lines = []
+    for a in assignments:
+        status = "✅" if a["completed"] else "🔲"
+        lines.append(f"{status} {a['name']} ({a['estimated_minutes']} min) — due: {a['due_date'] or 'N/A'}")
+    return "\n".join(lines)
