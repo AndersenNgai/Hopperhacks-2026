@@ -4,7 +4,7 @@
 # SETUP: Replace GEMINI_API_KEY with your actual key from https://aistudio.google.com/
 
 # ── API ──────────────────────────────────────────────────────────────────────
-GEMINI_API_KEY = "AIzaSyBcG8Sj1ojhaHqbzsHhok9RqQA1_I2UBdM"  # <-- paste your key here
+GEMINI_API_KEY = "INSERT API KEY HERE"  # <-- paste your key here
 GEMINI_MODEL   = "gemini-2.0-flash"          # fast + cheap for hackathon
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
