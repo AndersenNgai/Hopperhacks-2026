@@ -72,9 +72,7 @@ def get_current_assignment_name() -> str:
 
 def remove_assignment(name: str):
     """Remove an assignment from the list entirely."""
-    global assignments
-    assignments = [a for a in assignments if a["name"].lower() != name.lower()]
-
+    assignments[:] = [a for a in assignments if a["name"].lower() != name.lower()]
 
 # ── Pomodoro Timer ─────────────────────────────────────────────────────────────
 
@@ -88,6 +86,11 @@ def start_pomodoro(on_break=None, on_work=None):
     """
     global _pomodoro_running, _pomodoro_thread, _on_break_callback, _on_work_callback
     global _current_interval
+
+    # Prevent starting twice (minor fix)
+    if _pomodoro_thread and _pomodoro_thread.is_alive() and _pomodoro_running:
+        print("[Pomodoro] Already running.")
+        return
 
     _on_break_callback = on_break
     _on_work_callback  = on_work
@@ -151,6 +154,7 @@ def _pomodoro_loop():
 
 def _sleep_interruptible(seconds: int):
     """Sleep in small chunks so we can stop the timer quickly."""
+    seconds = int(seconds)
     for _ in range(seconds):
         if not _pomodoro_running:
             break
