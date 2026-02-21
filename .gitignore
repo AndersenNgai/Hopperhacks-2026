@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# API keys / secrets — NEVER commit these
+.env
+secrets.py
+
+# FocusOrb session data
+focusorb_log.json
+
+# Screenshots (if any get saved)
+*.png
+*.jpg
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,7 @@
+google-generativeai
+Pillow
+pyautogui
+plyer
+matplotlib
+requests
+pygetwindow; sys_platform == "win32"
