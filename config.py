@@ -4,7 +4,10 @@
 # SETUP: Replace GEMINI_API_KEY with your actual key from https://aistudio.google.com/
 
 # ── API ──────────────────────────────────────────────────────────────────────
-GEMINI_API_KEY = "INSERT API KEY HERE"  # <-- paste your key here
+import os
+from dotenv import load_dotenv
+load_dotenv()
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')  # <-- paste your key here
 GEMINI_MODEL   = "gemini-2.0-flash"          # fast + cheap for hackathon
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
