@@ -9,7 +9,7 @@ import pyautogui
 from PIL import Image
 from plyer import notification
 import config
-import llm_client
+import extensions.llm_client as llm_client
 import analytics
 
 # ── State ─────────────────────────────────────────────────────────────────────

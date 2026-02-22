@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import scrolledtext, font as tkfont
 import threading
 import config
-import llm_client
+import extensions.llm_client as gemini_client
 import assignments as assign_manager
 
 # ── State ──────────────────────────────────────────────────────────────────────
