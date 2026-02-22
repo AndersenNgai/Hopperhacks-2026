@@ -181,7 +181,8 @@ class ChatWindow:
 
                 if accepted:
                     _excuse_mode = False
-                    reply += "\n✅ I'll let it slide this time. Back to work!"
+                    reply += "\n✅ Enjoy your 5-minute break!! I'll close this this tab for you once time's up."
+                    threading.Thread(target=self._start_break_timer, args=(5,), daemon=True).start()
                 else:
                     reply += "\n❌ Closing that tab for you."
                     if close_tab:

@@ -1,3 +1,5 @@
+// content.js (runs on youtube.com)
+
 function isWatchPage() {
   return location.pathname === "/watch";
 }
@@ -8,6 +10,20 @@ function getVideoEl() {
 
 function now() {
   return Date.now();
+}
+
+function getYouTubeContext() {
+  const title = document.querySelector("h1")?.innerText?.trim() || document.title || "";
+  const channel = document.querySelector("#channel-name a")?.innerText?.trim() || "";
+  return { title, channel, url: location.href };
+}
+
+function parseBreakMinutes(text) {
+  const t = (text || "").toLowerCase().trim();
+  // accepts: "break 5", "break 5 min", "break 10 minutes"
+  const m = t.match(/break\s+(\d+)\s*(min|mins|minute|minutes)?/);
+  if (!m) return null;
+  return Number(m[1]);
 }
 
 let startedPlayingAt = null;
@@ -40,7 +56,7 @@ function ensureOverlay() {
     position: fixed;
     right: 18px;
     bottom: 18px;
-    width: 330px;
+    width: 340px;
     z-index: 2147483647;
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
   `;
@@ -75,14 +91,14 @@ function ensureOverlay() {
       </div>
 
       <div style="margin-top:10px; font-size:13px; color: rgba(255,255,255,0.7); line-height:1.35;">
-        YouTube is playing. Is this for your assignment, or a distraction?
+        YouTube is playing. Explain why you're here — or type <b>break 5</b>.
       </div>
 
-      <textarea id="fo-reason" placeholder="Optional: 'I’m watching Organic Chem Tutor for midterm…'"
+      <textarea id="fo-reason" placeholder="Examples: 'Organic Chem Tutor for midterm' or 'break 5'"
         style="
           margin-top:10px;
           width:100%;
-          min-height:64px;
+          min-height:70px;
           resize:none;
           padding:10px;
           border-radius:12px;
@@ -94,25 +110,33 @@ function ensureOverlay() {
       ></textarea>
 
       <div style="display:flex; gap:8px; margin-top:10px;">
-        <button id="fo-justify" style="
+        <button id="fo-ai" style="
           flex:1; background: rgba(120,180,255,0.18);
           border: 1px solid rgba(255,255,255,0.15);
           color: rgba(255,255,255,0.92);
           border-radius: 12px; padding: 8px 10px; cursor: pointer;
-          font-weight: 700;
-        ">It’s productive</button>
+          font-weight: 800;
+        ">Check w/ AI</button>
+
+        <button id="fo-break" style="
+          flex:1; background: rgba(120,255,180,0.14);
+          border: 1px solid rgba(255,255,255,0.15);
+          color: rgba(255,255,255,0.92);
+          border-radius: 12px; padding: 8px 10px; cursor: pointer;
+          font-weight: 800;
+        ">Break</button>
 
         <button id="fo-stop" style="
           flex:1; background: rgba(255,120,120,0.18);
           border: 1px solid rgba(255,255,255,0.15);
           color: rgba(255,255,255,0.92);
           border-radius: 12px; padding: 8px 10px; cursor: pointer;
-          font-weight: 700;
-        ">Close YouTube</button>
+          font-weight: 800;
+        ">Close</button>
       </div>
 
       <div style="margin-top:10px; font-size:12px; color: rgba(255,255,255,0.5);">
-        Tip: set <b>showAfterSeconds</b> in background.js storage defaults (ex: 30 seconds).
+        AI decisions come from your local backend at <b>localhost:8000/evaluate</b>.
       </div>
     </div>
   `;
@@ -121,22 +145,35 @@ function ensureOverlay() {
 
   wrap.querySelector("#fo-close").onclick = () => wrap.remove();
 
-  wrap.querySelector("#fo-justify").onclick = () => {
+  // AI check → backend → OpenAI
+  wrap.querySelector("#fo-ai").onclick = () => {
     const reason = wrap.querySelector("#fo-reason")?.value || "";
+    const yt = getYouTubeContext();
+
     chrome.runtime.sendMessage({
-      type: "YT_JUSTIFY",
-      url: location.href,
-      title: document.title,
-      reason
+      type: "EVAL_WITH_AI",
+      payload: { ...yt, reason }
     });
-    chrome.runtime.sendMessage({
-      type: "NOTIFY",
-      title: "Got it ✅",
-      message: "I’ll count this as productive (for now)."
-    });
+
     wrap.remove();
   };
 
+  // Break
+  wrap.querySelector("#fo-break").onclick = () => {
+    const text = wrap.querySelector("#fo-reason")?.value || "";
+    const minutes = parseBreakMinutes(text) ?? 5;
+
+    chrome.runtime.sendMessage({
+      type: "START_BREAK",
+      minutes,
+      site: "youtube",
+      reason: text
+    });
+
+    wrap.remove();
+  };
+
+  // Close tab now
   wrap.querySelector("#fo-stop").onclick = () => {
     chrome.runtime.sendMessage({ type: "CLOSE_TAB" });
   };
@@ -147,7 +184,6 @@ function removeOverlay() {
 }
 
 async function tick() {
-  // read settings from background
   const resp = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
   const settings = resp?.data || {};
 
@@ -155,10 +191,29 @@ async function tick() {
   else removeOverlay();
 }
 
-// Run periodically
-setInterval(tick, 1000);
+// Enforce: if break expired and still on YouTube watch page → close tab
+async function enforceBreak() {
+  const resp = await chrome.runtime.sendMessage({ type: "GET_BREAK" });
+  const { breakUntil = 0, breakSite = "" } = resp?.data || {};
 
-// Also handle YouTube SPA navigation (watch -> home etc)
+  const onYouTube = location.hostname.includes("youtube.com");
+  const inBreak = Date.now() < breakUntil;
+
+  if (onYouTube && breakSite === "youtube" && !inBreak && isWatchPage()) {
+    chrome.runtime.sendMessage({
+      type: "NOTIFY",
+      title: "Break is over ⏰",
+      message: "Back to work. Closing YouTube."
+    });
+    chrome.runtime.sendMessage({ type: "CLOSE_TAB" });
+  }
+}
+
+// Run loops
+setInterval(tick, 1000);
+setInterval(enforceBreak, 2000);
+
+// Handle YouTube SPA navigation
 let lastUrl = location.href;
 setInterval(() => {
   if (location.href !== lastUrl) {
