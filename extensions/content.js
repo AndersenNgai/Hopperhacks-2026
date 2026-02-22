@@ -1,224 +1,251 @@
-// content.js (runs on youtube.com)
+// content.js - Floating Orb + Chat (runs on all sites)
 
-function isWatchPage() {
-  return location.pathname === "/watch";
+const FO = {
+  orbId: "focusorb-orb",
+  panelId: "focusorb-panel",
+  state: {
+    open: false,
+    dragging: false,
+    dragOffsetX: 0,
+    dragOffsetY: 0,
+    messages: [],
+    busy: false
+  }
+};
+
+function host() {
+  return location.hostname.replace(/^www\./, "");
 }
 
-function getVideoEl() {
-  return document.querySelector("video");
+async function getSettings() {
+  const resp = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
+  return resp?.data || {};
 }
 
-function now() {
-  return Date.now();
+function createOrb() {
+  if (document.getElementById(FO.orbId)) return;
+
+  const orb = document.createElement("div");
+  orb.id = FO.orbId;
+  orb.style.cssText = `
+    position: fixed;
+    right: 18px;
+    bottom: 120px;
+    width: 54px;
+    height: 54px;
+    border-radius: 999px;
+    z-index: 2147483647;
+    cursor: pointer;
+    user-select: none;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(120,220,255,0.55) 35%, rgba(140,120,255,0.35) 70%, rgba(0,0,0,0.2));
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 18px 45px rgba(0,0,0,0.40), 0 0 25px rgba(120,220,255,0.28);
+    backdrop-filter: blur(6px);
+  `;
+
+  // little "sparkle" highlight
+  const dot = document.createElement("div");
+  dot.style.cssText = `
+    position:absolute;
+    top: 12px;
+    left: 14px;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.9);
+    box-shadow: 0 0 16px rgba(255,255,255,0.55);
+    opacity: 0.85;
+  `;
+  orb.appendChild(dot);
+
+  // Drag handlers
+  orb.addEventListener("mousedown", (e) => {
+    FO.state.dragging = true;
+    const rect = orb.getBoundingClientRect();
+    FO.state.dragOffsetX = e.clientX - rect.left;
+    FO.state.dragOffsetY = e.clientY - rect.top;
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!FO.state.dragging) return;
+    orb.style.right = "auto";
+    orb.style.bottom = "auto";
+    orb.style.left = `${e.clientX - FO.state.dragOffsetX}px`;
+    orb.style.top = `${e.clientY - FO.state.dragOffsetY}px`;
+  });
+
+  document.addEventListener("mouseup", () => {
+    FO.state.dragging = false;
+  });
+
+  // Click to toggle panel (but ignore click right after dragging)
+  let lastMove = 0;
+  document.addEventListener("mousemove", () => { if (FO.state.dragging) lastMove = Date.now(); });
+  orb.addEventListener("click", () => {
+    if (Date.now() - lastMove < 120) return;
+    togglePanel();
+  });
+
+  document.body.appendChild(orb);
 }
 
-function getYouTubeContext() {
-  const title = document.querySelector("h1")?.innerText?.trim() || document.title || "";
-  const channel = document.querySelector("#channel-name a")?.innerText?.trim() || "";
-  return { title, channel, url: location.href };
+function createPanel() {
+  if (document.getElementById(FO.panelId)) return;
+
+  const panel = document.createElement("div");
+  panel.id = FO.panelId;
+  panel.style.cssText = `
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    width: 360px;
+    height: 520px;
+    z-index: 2147483647;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(15,20,35,0.92);
+    box-shadow: 0 22px 60px rgba(0,0,0,0.55);
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+    display: none;
+    color: rgba(255,255,255,0.92);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  `;
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 12px 10px;border-bottom:1px solid rgba(255,255,255,0.12);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:10px;height:10px;border-radius:999px;background:rgba(120,220,255,1);box-shadow:0 0 18px rgba(120,220,255,0.45);"></div>
+        <div style="font-weight:900;">FocusOrb</div>
+      </div>
+      <button id="fo-close-panel" style="border:1px solid rgba(255,255,255,0.14);background:transparent;color:rgba(255,255,255,0.8);border-radius:10px;padding:4px 8px;cursor:pointer;">✕</button>
+    </div>
+
+    <div id="fo-sub" style="padding:10px 12px;font-size:12px;color:rgba(255,255,255,0.65);border-bottom:1px solid rgba(255,255,255,0.10);">
+      Site: <b>${host()}</b>
+    </div>
+
+    <div id="fo-messages" style="padding:12px;display:grid;gap:10px;overflow:auto;height:360px;"></div>
+
+    <div style="padding:12px;border-top:1px solid rgba(255,255,255,0.12);display:flex;gap:8px;align-items:center;">
+      <input id="fo-input" placeholder="Message FocusOrb… (or type: break 5)"
+        style="flex:1;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);outline:none;background:rgba(0,0,0,0.25);color:rgba(255,255,255,0.92);" />
+      <button id="fo-send" style="width:44px;height:44px;border-radius:14px;border:1px solid rgba(255,255,255,0.14);background:rgba(120,180,255,0.18);color:white;font-weight:900;cursor:pointer;">➤</button>
+    </div>
+  `;
+
+  document.body.appendChild(panel);
+
+  panel.querySelector("#fo-close-panel").onclick = () => closePanel();
+  panel.querySelector("#fo-send").onclick = () => sendChat();
+  panel.querySelector("#fo-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendChat();
+  });
+
+  renderMessages();
+}
+
+function openPanel() {
+  FO.state.open = true;
+  const panel = document.getElementById(FO.panelId);
+  if (panel) panel.style.display = "block";
+  // update site label
+  const sub = panel?.querySelector("#fo-sub");
+  if (sub) sub.innerHTML = `Site: <b>${host()}</b>`;
+}
+
+function closePanel() {
+  FO.state.open = false;
+  const panel = document.getElementById(FO.panelId);
+  if (panel) panel.style.display = "none";
+}
+
+function togglePanel() {
+  createPanel();
+  FO.state.open ? closePanel() : openPanel();
+}
+
+function bubble(role, text) {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = `
+    justify-self: ${role === "user" ? "end" : "start"};
+    max-width: 85%;
+    padding: 10px 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: ${role === "user" ? "rgba(120,180,255,0.18)" : "rgba(255,255,255,0.06)"};
+    color: rgba(255,255,255,0.92);
+    font-size: 13px;
+    line-height: 1.35;
+    white-space: pre-wrap;
+  `;
+  wrap.textContent = text;
+  return wrap;
+}
+
+function renderMessages() {
+  const box = document.getElementById("fo-messages");
+  if (!box) return;
+  box.innerHTML = "";
+  for (const m of FO.state.messages) box.appendChild(bubble(m.role, m.text));
+  box.scrollTop = box.scrollHeight;
 }
 
 function parseBreakMinutes(text) {
   const t = (text || "").toLowerCase().trim();
-  // accepts: "break 5", "break 5 min", "break 10 minutes"
   const m = t.match(/break\s+(\d+)\s*(min|mins|minute|minutes)?/);
   if (!m) return null;
   return Number(m[1]);
 }
 
-let startedPlayingAt = null;
+async function sendChat() {
+  if (FO.state.busy) return;
 
-function shouldShowOverlay(settings) {
-  if (!settings?.enabled || !settings?.youtubeEnabled) return false;
-  if (!isWatchPage()) return false;
+  const input = document.getElementById("fo-input");
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
 
-  const v = getVideoEl();
-  if (!v) return false;
-
-  const playing = !v.paused && !v.ended;
-  if (!playing) {
-    startedPlayingAt = null;
-    return false;
+  // Break command inside chat
+  const mins = parseBreakMinutes(text);
+  if (mins != null) {
+    chrome.runtime.sendMessage({ type: "START_BREAK", minutes: mins, host: host(), reason: text });
+    FO.state.messages.push({ role: "assistant", text: `✅ Break granted for ${mins} minutes on ${host()}.` });
+    renderMessages();
+    return;
   }
 
-  if (!startedPlayingAt) startedPlayingAt = now();
+  FO.state.messages.push({ role: "user", text });
+  renderMessages();
+  FO.state.busy = true;
 
-  const elapsedSec = (now() - startedPlayingAt) / 1000;
-  return elapsedSec >= (settings.showAfterSeconds ?? 0);
-}
-
-function ensureOverlay() {
-  if (document.getElementById("focusorb-overlay")) return;
-
-  const wrap = document.createElement("div");
-  wrap.id = "focusorb-overlay";
-  wrap.style.cssText = `
-    position: fixed;
-    right: 18px;
-    bottom: 18px;
-    width: 340px;
-    z-index: 2147483647;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-  `;
-
-  wrap.innerHTML = `
-    <div style="
-      background: rgba(15,20,35,0.92);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 16px;
-      padding: 12px;
-      color: rgba(255,255,255,0.92);
-      box-shadow: 0 16px 40px rgba(0,0,0,0.45);
-      backdrop-filter: blur(10px);
-    ">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="
-            width: 12px;height:12px;border-radius:999px;
-            background: rgba(120,220,255,1);
-            box-shadow: 0 0 18px rgba(120,220,255,0.45);
-          "></div>
-          <div style="font-weight:800;">FocusOrb</div>
-        </div>
-        <button id="fo-close" title="Close" style="
-          background: transparent;
-          border: 1px solid rgba(255,255,255,0.15);
-          color: rgba(255,255,255,0.8);
-          border-radius: 10px;
-          padding: 4px 8px;
-          cursor: pointer;
-        ">✕</button>
-      </div>
-
-      <div style="margin-top:10px; font-size:13px; color: rgba(255,255,255,0.7); line-height:1.35;">
-        YouTube is playing. Explain why you're here — or type <b>break 5</b>.
-      </div>
-
-      <textarea id="fo-reason" placeholder="Examples: 'Organic Chem Tutor for midterm' or 'break 5'"
-        style="
-          margin-top:10px;
-          width:100%;
-          min-height:70px;
-          resize:none;
-          padding:10px;
-          border-radius:12px;
-          border:1px solid rgba(255,255,255,0.15);
-          outline:none;
-          background: rgba(0,0,0,0.25);
-          color: rgba(255,255,255,0.9);
-        "
-      ></textarea>
-
-      <div style="display:flex; gap:8px; margin-top:10px;">
-        <button id="fo-ai" style="
-          flex:1; background: rgba(120,180,255,0.18);
-          border: 1px solid rgba(255,255,255,0.15);
-          color: rgba(255,255,255,0.92);
-          border-radius: 12px; padding: 8px 10px; cursor: pointer;
-          font-weight: 800;
-        ">Check w/ AI</button>
-
-        <button id="fo-break" style="
-          flex:1; background: rgba(120,255,180,0.14);
-          border: 1px solid rgba(255,255,255,0.15);
-          color: rgba(255,255,255,0.92);
-          border-radius: 12px; padding: 8px 10px; cursor: pointer;
-          font-weight: 800;
-        ">Break</button>
-
-        <button id="fo-stop" style="
-          flex:1; background: rgba(255,120,120,0.18);
-          border: 1px solid rgba(255,255,255,0.15);
-          color: rgba(255,255,255,0.92);
-          border-radius: 12px; padding: 8px 10px; cursor: pointer;
-          font-weight: 800;
-        ">Close</button>
-      </div>
-
-      <div style="margin-top:10px; font-size:12px; color: rgba(255,255,255,0.5);">
-        AI decisions come from your local backend at <b>localhost:8000/evaluate</b>.
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(wrap);
-
-  wrap.querySelector("#fo-close").onclick = () => wrap.remove();
-
-  // AI check → backend → OpenAI
-  wrap.querySelector("#fo-ai").onclick = () => {
-    const reason = wrap.querySelector("#fo-reason")?.value || "";
-    const yt = getYouTubeContext();
-
-    chrome.runtime.sendMessage({
-      type: "EVAL_WITH_AI",
-      payload: { ...yt, reason }
-    });
-
-    wrap.remove();
+  const settings = await getSettings();
+  const payload = {
+    message: text,
+    host: host(),
+    url: location.href,
+    title: document.title,
+    focusTopic: settings.focusTopic || "",
+    focusSince: settings.focusSince || 0
   };
 
-  // Break
-  wrap.querySelector("#fo-break").onclick = () => {
-    const text = wrap.querySelector("#fo-reason")?.value || "";
-    const minutes = parseBreakMinutes(text) ?? 5;
+  chrome.runtime.sendMessage({ type: "CHAT", payload }, (resp) => {
+    FO.state.busy = false;
 
-    chrome.runtime.sendMessage({
-      type: "START_BREAK",
-      minutes,
-      site: "youtube",
-      reason: text
-    });
+    if (!resp?.ok) {
+      FO.state.messages.push({ role: "assistant", text: `Error: ${resp?.error || "unknown"}` });
+      renderMessages();
+      return;
+    }
 
-    wrap.remove();
-  };
-
-  // Close tab now
-  wrap.querySelector("#fo-stop").onclick = () => {
-    chrome.runtime.sendMessage({ type: "CLOSE_TAB" });
-  };
+    const reply = resp.data?.reply || "(no reply)";
+    FO.state.messages.push({ role: "assistant", text: reply });
+    renderMessages();
+  });
 }
 
-function removeOverlay() {
-  document.getElementById("focusorb-overlay")?.remove();
-}
-
-async function tick() {
-  const resp = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
-  const settings = resp?.data || {};
-
-  if (shouldShowOverlay(settings)) ensureOverlay();
-  else removeOverlay();
-}
-
-// Enforce: if break expired and still on YouTube watch page → close tab
-async function enforceBreak() {
-  const resp = await chrome.runtime.sendMessage({ type: "GET_BREAK" });
-  const { breakUntil = 0, breakSite = "" } = resp?.data || {};
-
-  const onYouTube = location.hostname.includes("youtube.com");
-  const inBreak = Date.now() < breakUntil;
-
-  if (onYouTube && breakSite === "youtube" && !inBreak && isWatchPage()) {
-    chrome.runtime.sendMessage({
-      type: "NOTIFY",
-      title: "Break is over ⏰",
-      message: "Back to work. Closing YouTube."
-    });
-    chrome.runtime.sendMessage({ type: "CLOSE_TAB" });
-  }
-}
-
-// Run loops
-setInterval(tick, 1000);
-setInterval(enforceBreak, 2000);
-
-// Handle YouTube SPA navigation
-let lastUrl = location.href;
-setInterval(() => {
-  if (location.href !== lastUrl) {
-    lastUrl = location.href;
-    startedPlayingAt = null;
-    removeOverlay();
-  }
-}, 800);
+// Always show orb (MVP). Later you can show only when focusTopic is set.
+createOrb();
+createPanel();
+closePanel();

@@ -2,21 +2,22 @@
   "manifest_version": 3,
   "name": "FocusOrb",
   "version": "0.1.0",
-  "description": "AI-powered productivity assistant for YouTube + browsing.",
+  "description": "AI-powered productivity assistant overlay for browsing.",
   "permissions": ["storage", "notifications", "tabs", "activeTab"],
-  "host_permissions": ["https://www.youtube.com/*"],
+  "host_permissions": ["<all_urls>", "http://localhost:8000/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*"],
+      "matches": ["<all_urls>"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
   ],
   "action": {
-    "default_title": "FocusOrb"
+    "default_title": "FocusOrb",
+    "default_popup": "popup.html"
   }
 }

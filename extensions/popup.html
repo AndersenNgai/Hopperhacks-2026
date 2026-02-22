@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>FocusOrb</title>
+  </head>
+  <body style="margin:0;font-family:system-ui;background:#0b1220;color:white;width:340px;">
+    <div style="padding:12px;display:grid;gap:10px;">
+      <div style="font-weight:800;">FocusOrb</div>
+      <div id="current" style="font-size:12px;opacity:.8;">Loading...</div>
+
+      <input id="topic" placeholder="e.g. Calculus homework"
+        style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.25);color:white;outline:none;" />
+
+      <button id="set"
+        style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(120,180,255,.18);color:white;font-weight:700;cursor:pointer;">
+        Set Focus
+      </button>
+
+      <button id="clear"
+        style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,120,120,.18);color:white;font-weight:700;cursor:pointer;">
+        Clear Focus
+      </button>
+
+      <div style="font-size:12px;opacity:.65;line-height:1.35;">
+        When focus is set, FocusOrb will pop up if you drift off-topic.
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
