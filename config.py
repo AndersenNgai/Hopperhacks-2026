@@ -1,7 +1,5 @@
 # config.py
 # Central configuration for FocusOrb
-# ----------------------------------------
-# SETUP: Replace LLM_API_KEY with your actual key from https://aistudio.google.com/
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 SCREENSHOT_INTERVAL_SECONDS = 5    # how often to take a screenshot

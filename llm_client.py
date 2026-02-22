@@ -13,21 +13,10 @@ import json
 import config
 
 # Configure OpenAI once on import
-########################################
-
-# We're going to have to switch to Llama from featherless.ai
-# This means deleting all the OpenAI stuff here
-
-########################################
-
-
 
 load_dotenv()
-client = OpenAI(
-    base_url = "https://api.featherless.ai/v1",
-    api_key = os.getenv("LLM_API_KEY")
-)
-model = "featherless-1.5"
+client = OpenAI(api_key = os.getenv("LLM_API_KEY"))
+model = "gpt-4.1-mini"
 
 
 def _image_to_base64(pil_image: Image.Image) -> str:
