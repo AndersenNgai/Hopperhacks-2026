@@ -9,7 +9,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import config
-import gemini_client
+import llm_client
 
 # ── In-memory log for the current session ─────────────────────────────────────
 _session_log: list[dict] = []
@@ -100,7 +100,7 @@ def get_session_stats() -> dict:
 
 def get_ai_summary() -> str:
     """Ask Gemini to write a friendly session recap."""
-    return gemini_client.generate_session_summary(_session_log)
+    return llm_client.generate_session_summary(_session_log)
 
 
 # ── Graphs ─────────────────────────────────────────────────────────────────────

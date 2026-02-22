@@ -9,7 +9,7 @@ import pyautogui
 from PIL import Image
 from plyer import notification
 import config
-import gemini_client
+import llm_client
 import analytics
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ def _monitor_loop():
         try:
             screenshot  = take_screenshot()
             tab_titles  = get_open_tabs()
-            result      = gemini_client.score_productivity(
+            result      = llm_client.score_productivity(
                 screenshot, tab_titles, _current_assignment
             )
 

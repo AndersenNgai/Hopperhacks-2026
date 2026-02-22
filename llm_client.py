@@ -1,22 +1,37 @@
-# gemini_client.py
-# Wrapper for all Google Gemini API calls + prompt templates
+# llm_client.py
+# Wrapper for all OpenAI API calls + prompt templates
 # ----------------------------------------
 # Install: pip install google-generativeai Pillow
 
 import base64
 import io
-import google.generativeai as genai
+import os
+from openai import OpenAI
+from dotenv import load_dotenv
 from PIL import Image
 import json
 import config
 
-# Configure Gemini once on import
-genai.configure(api_key=config.GEMINI_API_KEY)
-model = genai.GenerativeModel(config.GEMINI_MODEL)
+# Configure OpenAI once on import
+########################################
+
+# We're going to have to switch to Llama from featherless.ai
+# This means deleting all the OpenAI stuff here
+
+########################################
+
+
+
+load_dotenv()
+client = OpenAI(
+    base_url = "https://api.featherless.ai/v1",
+    api_key = os.getenv("LLM_API_KEY")
+)
+model = "featherless-1.5"
 
 
 def _image_to_base64(pil_image: Image.Image) -> str:
-    """Convert a PIL image to base64 string for Gemini."""
+    """Convert a PIL image to base64 string for OpenAI."""
     buffer = io.BytesIO()
     pil_image.save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
@@ -24,7 +39,7 @@ def _image_to_base64(pil_image: Image.Image) -> str:
 
 def score_productivity(screenshot: Image.Image, tab_titles: list[str], assignment_name: str) -> dict:
     """
-    Send a screenshot + open tabs to Gemini and get a productivity score.
+    Send a screenshot + open tabs to OpenAI and get a productivity score.
 
     Returns:
         dict with keys: score (int 1-10), reason (str), is_productive (bool)
@@ -43,12 +58,20 @@ Respond ONLY with valid JSON in this exact format (no extra text):
 
     img_data = _image_to_base64(screenshot.resize((640, 360)))
 
-    response = model.generate_content([
-        {"mime_type": "image/png", "data": img_data},
-        prompt
-    ])
+    messages = [
+        {"role": "system", "content": "You are a productivity scoring assistant."},
+        {"role": "user", "content": prompt},
+        {"role": "user", "content": f"[image/jpeg base64]\n{img_data}"}
+    ]
 
-    raw = response.text.strip()
+    response = client.chat.completions.create(
+        model=model,  # replace with a model from client.models.list()
+        messages=messages,
+        temperature=0.0,
+        max_tokens=300
+    )
+
+    raw = response.choices[0].message["content"].strip()
     # Strip markdown code fences if present
     if raw.startswith("```"):
         raw = raw.split("```")[1]
@@ -58,14 +81,14 @@ Respond ONLY with valid JSON in this exact format (no extra text):
     try:
         return json.loads(raw.strip())
     except json.JSONDecodeError:
-        # Fallback if Gemini doesn't return clean JSON
+        # Fallback if OpenAI doesn't return clean JSON
         return {"score": 5, "reason": "Could not parse response", "is_productive": True}
 
 
 def evaluate_excuse(excuse: str, assignment_name: str, flagged_tabs: list[str]) -> dict:
     """
     Let the user explain why they were on a 'distracting' site.
-    Gemini decides if the excuse is valid.
+    OpenAI decides if the excuse is valid.
 
     Returns:
         dict with keys: accepted (bool), response (str), close_tab (bool)
@@ -82,8 +105,18 @@ Decide if this excuse is valid. Be firm but friendly. If it's clearly a distract
 Respond ONLY with valid JSON:
 {{"accepted": false, "response": "I understand, but YouTube doesn't help with your essay. Let me close that for you!", "close_tab": true}}"""
 
-    response = model.generate_content(prompt)
-    raw = response.text.strip()
+    messages = [
+        {"role": "system", "content": "You are a productivity coach."},
+        {"role": "user", "content": prompt}
+    ]
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=0.0,
+        max_tokens=200
+    )
+    raw = response.choices[0].message["content"].strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -105,14 +138,14 @@ def chat_response(user_message: str, assignment_name: str, conversation_history:
         conversation_history: list of {"role": "user"/"assistant", "content": "..."}
 
     Returns:
-        str response from Gemini
+        str response from OpenAI
     """
     system_context = f"""You are FocusOrb, a helpful and encouraging productivity assistant built into a desktop app.
 The user is currently working on: "{assignment_name}".
 Be concise, friendly, and keep responses under 3 sentences unless asked for detail.
 You can help with: task planning, motivation, break suggestions, or answering questions."""
 
-    # Build conversation for Gemini
+    # Build conversation for OpenAI
     history_text = ""
     for msg in conversation_history[-6:]:  # last 6 messages for context
         role = "User" if msg["role"] == "user" else "FocusOrb"
@@ -120,16 +153,26 @@ You can help with: task planning, motivation, break suggestions, or answering qu
 
     full_prompt = f"{system_context}\n\nConversation so far:\n{history_text}\nUser: {user_message}\nFocusOrb:"
 
-    response = model.generate_content(full_prompt)
-    return response.text.strip()
+    messages = [
+        {"role": "system", "content": system_context},
+        {"role": "user", "content": full_prompt}
+    ]
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=0.7,
+        max_tokens=300
+    )
+    return response.choices[0].message["content"].strip()
 
 
 def read_url_and_summarize(url: str, assignment_name: str) -> str:
     """
-    Fetch a URL and ask Gemini if it's relevant to the user's assignment.
+    Fetch a URL and ask OpenAI if it's relevant to the user's assignment.
 
     Returns:
-        str - Gemini's assessment of whether the URL is relevant/productive
+        str - OpenAI's assessment of whether the URL is relevant/productive
     """
     import requests
     try:
@@ -147,13 +190,24 @@ They shared this URL content (truncated):
 ---
 In 1-2 sentences, is this webpage relevant to their assignment? Is visiting it productive?"""
 
-    response = model.generate_content(prompt)
-    return response.text.strip()
+    messages = [
+        {"role": "system", "content": "You are a productivity assistant."},
+        {"role": "user", "content": prompt}
+    ]
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=0.0,
+        max_tokens=200
+    )
+
+    return response.choices[0].message["content"].strip()
 
 
 def generate_session_summary(log_entries: list[dict]) -> str:
     """
-    Given a list of session log entries, ask Gemini to write a friendly summary.
+    Given a list of session log entries, ask OpenAI to write a friendly summary.
 
     Returns:
         str - a short session recap
@@ -174,5 +228,16 @@ Stats:
 
 Write a friendly, encouraging 2-3 sentence summary of their session. Be specific about the numbers. End with one motivational tip."""
 
-    response = model.generate_content(prompt)
-    return response.text.strip()
+    messages = [
+        {"role": "system", "content": "You are a productivity assistant."},
+        {"role": "user", "content": prompt}
+    ]
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=0.7,
+        max_tokens=300
+    )
+
+    return response.choices[0].message["content"].strip()

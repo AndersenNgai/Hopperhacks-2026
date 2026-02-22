@@ -1,14 +1,7 @@
 # config.py
 # Central configuration for FocusOrb
 # ----------------------------------------
-# SETUP: Replace GEMINI_API_KEY with your actual key from https://aistudio.google.com/
-
-# ── API ──────────────────────────────────────────────────────────────────────
-import os
-from dotenv import load_dotenv
-load_dotenv()
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')  # <-- paste your key here
-GEMINI_MODEL   = "gemini-2.0-flash"          # fast + cheap for hackathon
+# SETUP: Replace LLM_API_KEY with your actual key from https://aistudio.google.com/
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 SCREENSHOT_INTERVAL_SECONDS = 5    # how often to take a screenshot

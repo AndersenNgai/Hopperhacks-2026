@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import scrolledtext, font as tkfont
 import threading
 import config
-import gemini_client
+import llm_client
 import assignments as assign_manager
 
 # ── State ──────────────────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ class ChatWindow:
         try:
             if _excuse_mode:
                 # Excuse evaluation mode
-                result = gemini_client.evaluate_excuse(user_text, assignment, _flagged_tabs)
+                result = llm_client.evaluate_excuse(user_text, assignment, _flagged_tabs)
                 reply  = result.get("response", "Let's get back on track!")
                 accepted = result.get("accepted", False)
                 close_tab = result.get("close_tab", False)
@@ -190,7 +190,7 @@ class ChatWindow:
             else:
                 # Normal chat
                 _conversation_history.append({"role": "user", "content": user_text})
-                reply = gemini_client.chat_response(user_text, assignment, _conversation_history)
+                reply = llm_client.chat_response(user_text, assignment, _conversation_history)
                 _conversation_history.append({"role": "assistant", "content": reply})
 
         except Exception as e:
@@ -230,7 +230,7 @@ class ChatWindow:
         """Fetch and analyze a URL in a background thread."""
         assignment = assign_manager.get_current_assignment_name()
         try:
-            result = gemini_client.read_url_and_summarize(url, assignment)
+            result = llm_client.read_url_and_summarize(url, assignment)
         except Exception as e:
             result = f"Error reading URL: {e}"
         self.root.after(0, self._add_message, "FocusOrb", result, True)
