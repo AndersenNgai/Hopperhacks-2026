@@ -60,7 +60,7 @@ Respond ONLY with valid JSON in this exact format (no extra text):
         max_tokens=300
     )
 
-    raw = response.choices[0].message["content"].strip()
+    raw = response.choices[0].message.content.strip()
     # Strip markdown code fences if present
     if raw.startswith("```"):
         raw = raw.split("```")[1]
@@ -105,7 +105,7 @@ Respond ONLY with valid JSON:
         temperature=0.0,
         max_tokens=200
     )
-    raw = response.choices[0].message["content"].strip()
+    raw = response.choices[0].message.content.strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -153,7 +153,7 @@ You can help with: task planning, motivation, break suggestions, or answering qu
         temperature=0.7,
         max_tokens=300
     )
-    return response.choices[0].message["content"].strip()
+    return response.choices[0].message.content.strip()
 
 
 def read_url_and_summarize(url: str, assignment_name: str) -> str:
@@ -191,7 +191,7 @@ In 1-2 sentences, is this webpage relevant to their assignment? Is visiting it p
         max_tokens=200
     )
 
-    return response.choices[0].message["content"].strip()
+    return response.choices[0].message.content.strip()
 
 
 def generate_session_summary(log_entries: list[dict]) -> str:
@@ -229,4 +229,4 @@ Write a friendly, encouraging 2-3 sentence summary of their session. Be specific
         max_tokens=300
     )
 
-    return response.choices[0].message["content"].strip()
+    return response.choices[0].message.content.strip()

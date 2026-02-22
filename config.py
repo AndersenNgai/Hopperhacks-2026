@@ -2,7 +2,7 @@
 # Central configuration for FocusOrb
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
-SCREENSHOT_INTERVAL_SECONDS = 5    # how often to take a screenshot
+SCREENSHOT_INTERVAL_SECONDS = 45    # how often to take a screenshot
 LOW_SCORE_THRESHOLD         = 4     # score below this is "unproductive" (1-10)
 CONSECUTIVE_LOW_BEFORE_ALERT = 3    # how many low scores in a row before notification
 
