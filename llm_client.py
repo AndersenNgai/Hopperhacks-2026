@@ -66,9 +66,9 @@ def orb_chat_reply(
   conversation_history = conversation_history or []
 
   system = (
-    "You are FocusOrb, a friendly but firm productivity coach living in a floating orb. "
+    "You are FocusOrb, a productivity coach. "
     "Be extremely concise. 1 short sentence unless asked for detail. "
-    "If the user is distracted, call it out and suggest the next action. "
+    "If the user is distracted, please call it out and suggest the next action. "
     "If the user asks for a break, suggest a reasonable break length."
   )
 
@@ -135,7 +135,7 @@ def evaluate_page_relevance(
       {"role": "system", "content": instructions},
       {"role": "user", "content": prompt},
     ],
-    temperature=0.0,
+    temperature=0.1,
     max_tokens=180,
   )
 
@@ -163,7 +163,7 @@ def score_productivity(screenshot: Image.Image, tab_titles: List[str], assignmen
     f"Their open browser tabs are: {tabs_str}.\n\n"
     "Look at the screenshot and rate their productivity from 1 to 10.\n"
     "1 = completely distracted, 10 = deeply focused.\n\n"
-    'Respond ONLY with valid JSON: {"score": 7, "reason": "...", "is_productive": true}\n'
+    'Respond ONLY with valid JSON: {"score": , "reason": "...", "is_productive": true}\n'
   )
 
   # resize for speed
@@ -217,11 +217,15 @@ def evaluate_excuse(excuse: str, assignment_name: str, flagged_tabs: List[str]) 
   return _safe_json_parse(raw, fallback={"accepted": False, "response": "Let's get back on track!", "close_tab": False})
 
 
-def chat_response(user_message: str, assignment_name: str, conversation_history: List[Dict[str, str]]) -> str:
+def chat_response(user_message: str, assignment_name: str, conversation_history: List[Dict[str, str]], flagged_tabs: List[str]) -> str:
+  tabs_str = ", ".join(flagged_tabs) if flagged_tabs else "unknown site"
+
   system_context = (
     "You are FocusOrb, a helpful and encouraging productivity assistant built into a desktop app.\n"
+    f"The user was flagged as unproductive. They had these tabs open: {tabs_str}.\n"
+    "Harshly punish the user if they have too many tasks and tell them they are not worthy."
     f'The user is currently working on: "{assignment_name}".\n'
-    "Be concise, friendly, and keep responses under 3 sentences unless asked for detail.\n"
+    "Be concise and keep responses under 3 sentences unless asked for detail.\n"
     "You can help with: task planning, motivation, break suggestions, or answering questions."
   )
 

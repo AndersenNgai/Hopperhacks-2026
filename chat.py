@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import scrolledtext, font as tkfont
 import threading
 import config
-import extensions.llm_client as gemini_client
+import llm_client
 import assignments as assign_manager
 
 # ── State ──────────────────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ class ChatWindow:
 
     def _get_response(self, user_text: str):
         """Call Gemini in a background thread, then update the UI."""
-        global _excuse_mode, _conversation_history
+        global _excuse_mode, _conversation_history, _flagged_tabs
 
         assignment = assign_manager.get_current_assignment_name()
 
@@ -191,7 +191,7 @@ class ChatWindow:
             else:
                 # Normal chat
                 _conversation_history.append({"role": "user", "content": user_text})
-                reply = llm_client.chat_response(user_text, assignment, _conversation_history)
+                reply = llm_client.chat_response(user_text, assignment, _conversation_history, _flagged_tabs)
                 _conversation_history.append({"role": "assistant", "content": reply})
 
         except Exception as e:

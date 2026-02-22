@@ -9,7 +9,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import config
-import extensions.llm_client as llm_client
+import llm_client
 
 # ── In-memory log for the current session ─────────────────────────────────────
 _session_log: list[dict] = []
